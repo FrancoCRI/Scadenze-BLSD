@@ -13,7 +13,7 @@ st.set_page_config(
 # --- HEADER CON EMBLEMA ---
 logo_url = "https://wikimedia.org"
 
-col_logo, col_titolo = st.columns()
+col_logo, col_titolo = st.columns(2)
 with col_logo:
     st.image(logo_url, width=90)
 with col_titolo:
