@@ -10,45 +10,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STILE E GRAFICA (Custom CSS) ---
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button {
-        background-color: #e2231a;
-        color: white;
-        border-radius: 5px;
-        border: none;
-        padding: 0.5rem 1rem;
-        font-weight: bold;
-    }
-    .header-container {
-        display: flex;
-        align-items: center;
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        margin-bottom: 2rem;
-    }
-    .header-text { margin-left: 20px; }
-    .header-text h1 { color: #e2231a; margin: 0; font-size: 2.2rem; }
-    .header-text p { color: #555; margin: 5px 0 0 0; font-size: 1.1rem; }
-    </style>
-""", unsafe_allow_index=True)
-
 # --- HEADER CON EMBLEMA ---
 logo_url = "https://wikimedia.org"
 
-st.markdown(f"""
-    <div class="header-container">
-        <img src="{logo_url}" width="80" alt="Emblema CRI">
-        <div class="header-text">
-            <h1>Croce Rossa Italiana</h1>
-            <p>Piattaforma Monitoraggio Scadenze Abilitazioni Defibrillatore (BLSD)</p>
-        </div>
-    </div>
-""", unsafe_allow_index=True)
+col_logo, col_titolo = st.columns([1, 8])
+with col_logo:
+    st.image(logo_url, width=90)
+with col_titolo:
+    st.title("Croce Rossa Italiana")
+    st.subheader("Piattaforma Monitoraggio Scadenze Abilitazioni Defibrillatore (BLSD)")
+
+st.markdown("---")
 
 # --- INIZIALIZZAZIONE DATABASE IN MEMORIA ---
 if 'volontari' not in st.session_state:
@@ -60,7 +32,7 @@ if 'volontari' not in st.session_state:
 def calcola_scadenza_e_stato(row):
     data_ref = row['Data Aggiornamento'] if pd.notna(row['Data Aggiornamento']) and row['Data Aggiornamento'] != '' else row['Data Corso Base']
     if pd.isna(data_ref) or data_ref == '':
-        return "Dati Incompleti", "#e0e0e0", None
+        return "Dati Incompleti", None
     
     if isinstance(data_ref, str):
         try:
@@ -69,7 +41,7 @@ def calcola_scadenza_e_stato(row):
             try:
                 dt = pd.to_datetime(data_ref).date()
             except:
-                return "Errore Formato Data", "#e0e0e0", None
+                return "Errore Formato Data", None
     elif isinstance(data_ref, datetime):
         dt = data_ref.date()
     else:
@@ -84,13 +56,13 @@ def calcola_scadenza_e_stato(row):
     giorni_mancanti = (data_scadenza - oggi).days
     
     if giorni_mancanti < 0:
-        return "SCADUTO ❌", "#ffcccc", data_scadenza
+        return "SCADUTO ❌", data_scadenza
     elif giorni_mancanti <= 90:
-        return "Scadenza Stretta (3 mesi) ⚠️", "#ffe6cc", data_scadenza
+        return "Scadenza Stretta (3 mesi) ⚠️", data_scadenza
     elif giorni_mancanti <= 180:
-        return "In Scadenza (6 mesi) ⏳", "#fff5cc", data_scadenza
+        return "In Scadenza (6 mesi) ⏳", data_scadenza
     else:
-        return "Valido ✅", "#ccffcc", data_scadenza
+        return "Valido ✅", data_scadenza
 
 # --- SIDEBAR: FUNZIONALITÀ ---
 st.sidebar.header("⚙️ Pannello Azioni")
@@ -134,13 +106,11 @@ st.subheader("📋 Registro Abilitazioni e Stato Scadenze")
 
 if not st.session_state.volontari.empty:
     stati = []
-    colori = []
     scadenze = []
     
     for idx, row in st.session_state.volontari.iterrows():
-        stato, colore, scadenza = calcola_scadenza_e_stato(row)
+        stato, scadenza = calcola_scadenza_e_stato(row)
         stati.append(stato)
-        colori.append(colore)
         scadenze.append(scadenza)
         
     df_visualizzazione = st.session_state.volontari.copy()
