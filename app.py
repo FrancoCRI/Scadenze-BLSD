@@ -91,9 +91,11 @@ with st.sidebar.form("nuovo_volontario", clear_on_submit=True):
     cognome = st.text_input("Cognome")
     tel = st.text_input("Telefono")
     email = st.text_input("Email")
-    data_base = st.date_input("Data Corso Base", value=date.today(), format="DD/MM/YYYY")
+    
+    # Rimosso il blocco del 2016 impostando min_value all'anno 1900
+    data_base = st.date_input("Data Corso Base", value=date.today(), min_value=date(1900, 1, 1), format="DD/MM/YYYY")
     ha_aggiornamento = st.checkbox("Ha effettuato aggiornamenti?")
-    data_agg = st.date_input("Data Ultimo Aggiornamento", value=date.today(), format="DD/MM/YYYY") if ha_aggiornamento else None
+    data_agg = st.date_input("Data Ultimo Aggiornamento", value=date.today(), min_value=date(1900, 1, 1), format="DD/MM/YYYY") if ha_aggiornamento else None
     
     submit = st.form_submit_button("Salva Anagrafica")
     if submit:
