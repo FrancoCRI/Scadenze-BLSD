@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
 
 # --- CONFIGURAZIONE PAGINA ---
 st.set_page_config(
@@ -58,38 +57,48 @@ if 'volontari' not in st.session_state:
         'Nome', 'Cognome', 'Telefono', 'Email', 'Data Corso Base', 'Data Aggiornamento'
     ])
 
-# --- FUNZIONI DI CALCOLO ---
-def calcola_stato(row):
-    data_riferimento = row['Data Aggiornamento'] if pd.notna(row['Data Aggiornamento']) and row['Data Aggiornamento'] != '' else row['Data Corso Base']
-    if pd.isna(data_riferimento) or data_riferimento == '':
+# --- FUNZIONI DI CALCOLO CON NATIVE DATETIME ---
+def calcola_scadenza_e_stato(row):
+    data_ref = row['Data Aggiornamento'] if pd.notna(row['Data Aggiornamento']) and row['Data Aggiornamento'] != '' else row['Data Corso Base']
+    if pd.isna(data_ref) or data_ref == '':
         return "Dati Incompleti", "#e0e0e0", None
     
-    if isinstance(data_riferimento, str):
+    # Conversione sicura in oggetto data
+    if isinstance(data_ref, str):
         try:
-            data_riferimento = pd.to_datetime(data_riferimento).date()
+            dt = datetime.strptime(data_ref, "%Y-%m-%d").date()
         except:
-            return "Errore Data", "#e0e0e0", None
-    elif isinstance(data_riferimento, datetime):
-        data_riferimento = data_riferimento.date()
+            try:
+                dt = pd.to_datetime(data_ref).date()
+            except:
+                return "Errore Formato Data", "#e0e0e0", None
+    elif isinstance(data_ref, datetime):
+        dt = data_ref.date()
+    else:
+        dt = data_ref
+
+    # Calcolo della scadenza a 2 anni esatti (aggiungendo 730 giorni)
+    try:
+        data_scadenza = dt.replace(year=dt.year + 2)
+    except ValueError:
+        # Gestione anno bisestile (29 febbraio)
+        data_scadenza = dt + pd.Timedelta(days=730)
         
-    data_scadenza = data_riferimento + relativedelta(years=2)
     oggi = date.today()
+    giorni_mancanti = (data_scadenza - oggi).days
     
-    mesi_alla_scadenza = (data_scadenza.year - oggi.year) * 12 + (data_scadenza.month - oggi.month)
-    
-    if oggi > data_scadenza:
+    if giorni_mancanti < 0:
         return "SCADUTO ❌", "#ffcccc", data_scadenza
-    elif mesi_alla_scadenza <= 3:
+    elif giorni_mancanti <= 90:
         return "Scadenza Stretta (3 mesi) ⚠️", "#ffe6cc", data_scadenza
-    elif mesi_alla_scadenza <= 6:
+    elif giorni_mancanti <= 180:
         return "In Scadenza (6 mesi) ⏳", "#fff5cc", data_scadenza
     else:
-        return "Valido  ", "#ccffcc", data_scadenza
+        return "Valido ✅", "#ccffcc", data_scadenza
 
 # --- SIDEBAR: FUNZIONALITÀ ---
 st.sidebar.header("⚙️ Pannello Azioni")
 
-# 1. Importazione Excel
 st.sidebar.subheader("1. Importa da Excel")
 uploaded_file = st.sidebar.file_uploader("Carica file .xlsx", type=["xlsx"])
 
@@ -98,20 +107,13 @@ if uploaded_file is not None:
         df_imported = pd.read_excel(uploaded_file)
         colonne_richieste = ['Nome', 'Cognome', 'Telefono', 'Email', 'Data Corso Base']
         if all(col in df_imported.columns for col in colonne_richieste):
-            df_imported['Data Corso Base'] = pd.to_datetime(df_imported['Data Corso Base']).dt.date
-            if 'Data Aggiornamento' in df_imported.columns:
-                df_imported['Data Aggiornamento'] = pd.to_datetime(df_imported['Data Aggiornamento']).dt.date
-            else:
-                df_imported['Data Aggiornamento'] = None
-                
             st.session_state.volontari = df_imported
-            st.sidebar.success("✅ File importato con successo!")
+            st.sidebar.success("✅ File importato!")
         else:
-            st.sidebar.error("Colonne non corrette. Usa: Nome, Cognome, Telefono, Email, Data Corso Base, Data Aggiornamento")
+            st.sidebar.error("Colonne richieste: Nome, Cognome, Telefono, Email, Data Corso Base, Data Aggiornamento")
     except Exception as e:
-        st.sidebar.error(f"Errore nel caricamento: {e}")
+        st.sidebar.error(f"Errore: {e}")
 
-# 2. Inserimento Manuale
 st.sidebar.subheader("2. Aggiungi Volontario")
 with st.sidebar.form("nuovo_volontario", clear_on_submit=True):
     nome = st.text_input("Nome")
@@ -140,7 +142,7 @@ if not st.session_state.volontari.empty:
     scadenze = []
     
     for idx, row in st.session_state.volontari.iterrows():
-        stato, colore, scadenza = calcola_stato(row)
+        stato, colore, scadenza = calcola_scadenza_e_stato(row)
         stati.append(stato)
         colori.append(colore)
         scadenze.append(scadenza)
@@ -149,11 +151,11 @@ if not st.session_state.volontari.empty:
     df_visualizzazione['Data Scadenza'] = scadenze
     df_visualizzazione['Stato Brevetto'] = stati
     
-    filtro_stato = st.selectbox("Filtra per stato:", ["Tutti", "Valido  ", "In Scadenza (6 mesi) ⏳", "Scadenza Stretta (3 mesi) ⚠️", "SCADUTO ❌"])
+    filtro_stato = st.selectbox("Filtra per stato:", ["Tutti", "Valido ✅", "In Scadenza (6 mesi) ⏳", "Scadenza Stretta (3 mesi) ⚠️", "SCADUTO ❌"])
     if filtro_stato != "Tutti":
         df_visualizzazione = df_visualizzazione[df_visualizzazione['Stato Brevetto'] == filtro_stato]
         
-    df_visualizzazione = df_visualizzazione.sort_values(by='Data Scadenza', ascending=True)
+    df_visualizzazione = df_visualizzazione.sort_values(by='Data Scadenza', ascending=True, na_position='last')
     st.dataframe(df_visualizzazione, use_container_width=True)
     
     # --- SISTEMA INVIO NOTIFICHE EMAIL ---
@@ -165,17 +167,11 @@ if not st.session_state.volontari.empty:
     ])]
     
     if not da_notificare.empty:
-        st.warning(f"Ci sono {len(da_notificare)} volontari che richiedono l'invio di un avviso email.")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(f"Invia Mail di Avviso a {len(da_notificare)} Volontari"):
-                for idx, r in da_notificare.iterrows():
-                    testo_stato = "è SCADUTO" if "SCADUTO" in r['Stato Brevetto'] else f"scadrà il {r['Data Scadenza']}"
-                    st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']}) - Oggetto: Avviso Scadenza Qualifica BLSD CRI. Messaggio: Gentile volontario, il tuo brevetto {testo_stato}. Ti invitiamo a iscriverti al re-training.")
-                st.success("🎉 Tutte le email di notifica scadenze (6 mesi / 3 mesi / Scaduti) sono state inoltrate con successo!")
-        with col2:
-            csv = da_notificare.to_csv(index=False).encode('utf-8')
-            st.download_button("Scarica Report Scadenze (CSV)", csv, "report_scadenze_cri.csv", "text/csv")
+        st.warning(f"Ci sono {len(da_notificare)} avvisi da inviare.")
+        if st.button(f"Invia Mail di Avviso a {len(da_notificare)} Volontari"):
+            for idx, r in da_notificare.iterrows():
+                testo_stato = "è SCADUTO" if "SCADUTO" in r['Stato Brevetto'] else f"scadrà il {r['Data Scadenza']}"
+                st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']}) - Oggetto: Avviso Scadenza Qualifica BLSD CRI.")
+            st.success("🎉 Email inviate con successo!")
 else:
-    st.info("💡 Il registro è vuoto. Trascina un file Excel nella barra laterale sinistra o inserisci un volontario manualmente per iniziare.")
+    st.info("💡 Il registro è vuoto. Carica un file Excel a sinistra o inserisci un volontario per partire.")
