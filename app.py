@@ -22,7 +22,6 @@ st.markdown("""
         padding: 0.5rem 1rem;
         font-weight: bold;
     }
-    .stButton>button:hover { background-color: #b51a13; color: white; }
     .header-container {
         display: flex;
         align-items: center;
@@ -63,7 +62,6 @@ def calcola_scadenza_e_stato(row):
     if pd.isna(data_ref) or data_ref == '':
         return "Dati Incompleti", "#e0e0e0", None
     
-    # Conversione sicura in oggetto data
     if isinstance(data_ref, str):
         try:
             dt = datetime.strptime(data_ref, "%Y-%m-%d").date()
@@ -77,11 +75,9 @@ def calcola_scadenza_e_stato(row):
     else:
         dt = data_ref
 
-    # Calcolo della scadenza a 2 anni esatti (aggiungendo 730 giorni)
     try:
         data_scadenza = dt.replace(year=dt.year + 2)
     except ValueError:
-        # Gestione anno bisestile (29 febbraio)
         data_scadenza = dt + pd.Timedelta(days=730)
         
     oggi = date.today()
@@ -110,7 +106,7 @@ if uploaded_file is not None:
             st.session_state.volontari = df_imported
             st.sidebar.success("✅ File importato!")
         else:
-            st.sidebar.error("Colonne richieste: Nome, Cognome, Telefono, Email, Data Corso Base, Data Aggiornamento")
+            st.sidebar.error("Colonne richieste: Nome, Cognome, Telefono, Email, Data Corso Base")
     except Exception as e:
         st.sidebar.error(f"Errore: {e}")
 
@@ -171,7 +167,7 @@ if not st.session_state.volontari.empty:
         if st.button(f"Invia Mail di Avviso a {len(da_notificare)} Volontari"):
             for idx, r in da_notificare.iterrows():
                 testo_stato = "è SCADUTO" if "SCADUTO" in r['Stato Brevetto'] else f"scadrà il {r['Data Scadenza']}"
-                st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']}) - Oggetto: Avviso Scadenza Qualifica BLSD CRI.")
+                st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']})")
             st.success("🎉 Email inviate con successo!")
 else:
     st.info("💡 Il registro è vuoto. Carica un file Excel a sinistra o inserisci un volontario per partire.")
