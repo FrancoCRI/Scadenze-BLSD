@@ -13,7 +13,7 @@ st.set_page_config(
 # --- HEADER CON EMBLEMA ---
 logo_url = "https://wikimedia.org"
 
-col_logo, col_titolo = st.columns([1, 10])
+col_logo, col_titolo = st.columns()
 with col_logo:
     st.image(logo_url, width=90)
 with col_titolo:
@@ -36,11 +36,9 @@ def calcola_scadenza_e_stato(row):
     
     if isinstance(data_ref, str):
         try:
-            # Prova formato italiano gg/mm/aaaa
             dt = datetime.strptime(data_ref, "%d/%m/%Y").date()
         except:
             try:
-                # Prova formato standard aaaa-mm-gg
                 dt = datetime.strptime(data_ref, "%Y-%m-%d").date()
             except:
                 try:
@@ -48,7 +46,6 @@ def calcola_scadenza_e_stato(row):
                 except:
                     return "Errore Formato Data", None
     elif isinstance(data_ref, datetime) or isinstance(data_ref, date):
-        # Se è già un oggetto data di pandas/python
         dt = pd.to_datetime(data_ref).date()
     else:
         dt = data_ref
@@ -59,7 +56,7 @@ def calcola_scadenza_e_stato(row):
         data_scadenza = dt + pd.Timedelta(days=730)
         
     oggi = date.today()
-    giorni_mancanti = (data_scadenza - hoy = oggi).days
+    giorni_mancanti = (data_scadenza - oggi).days
     
     if giorni_mancanti < 0:
         return "SCADUTO ❌", data_scadenza
@@ -129,7 +126,6 @@ if not st.session_state.volontari.empty:
         
     df_visualizzazione = df_visualizzazione.sort_values(by='Data Scadenza', ascending=True, na_position='last')
     
-    # Formattazione finale delle colonne data in formato italiano (gg/mm/aaaa) prima di mostrarle
     for col in ['Data Corso Base', 'Data Aggiornamento', 'Data Scadenza']:
         if col in df_visualizzazione.columns:
             df_visualizzazione[col] = pd.to_datetime(df_visualizzazione[col], errors='coerce').dt.strftime('%d/%m/%Y').fillna('')
