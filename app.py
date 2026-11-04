@@ -13,7 +13,7 @@ st.set_page_config(
 # --- HEADER CON EMBLEMA ---
 logo_url = "https://wikimedia.org"
 
-col_logo, col_titolo = st.columns([1, 8])
+col_logo, col_titolo = st.columns([1, 10])
 with col_logo:
     st.image(logo_url, width=90)
 with col_titolo:
@@ -28,7 +28,7 @@ if 'volontari' not in st.session_state:
         'Nome', 'Cognome', 'Telefono', 'Email', 'Data Corso Base', 'Data Aggiornamento'
     ])
 
-# --- FUNZIONI DI CALCOLO CON NATIVE DATETIME ---
+# --- FUNZIONI DI CALCOLO E CONVERSIONE ---
 def calcola_scadenza_e_stato(row):
     data_ref = row['Data Aggiornamento'] if pd.notna(row['Data Aggiornamento']) and row['Data Aggiornamento'] != '' else row['Data Corso Base']
     if pd.isna(data_ref) or data_ref == '':
@@ -36,14 +36,20 @@ def calcola_scadenza_e_stato(row):
     
     if isinstance(data_ref, str):
         try:
-            dt = datetime.strptime(data_ref, "%Y-%m-%d").date()
+            # Prova formato italiano gg/mm/aaaa
+            dt = datetime.strptime(data_ref, "%d/%m/%Y").date()
         except:
             try:
-                dt = pd.to_datetime(data_ref).date()
+                # Prova formato standard aaaa-mm-gg
+                dt = datetime.strptime(data_ref, "%Y-%m-%d").date()
             except:
-                return "Errore Formato Data", None
-    elif isinstance(data_ref, datetime):
-        dt = data_ref.date()
+                try:
+                    dt = pd.to_datetime(data_ref).date()
+                except:
+                    return "Errore Formato Data", None
+    elif isinstance(data_ref, datetime) or isinstance(data_ref, date):
+        # Se è già un oggetto data di pandas/python
+        dt = pd.to_datetime(data_ref).date()
     else:
         dt = data_ref
 
@@ -53,7 +59,7 @@ def calcola_scadenza_e_stato(row):
         data_scadenza = dt + pd.Timedelta(days=730)
         
     oggi = date.today()
-    giorni_mancanti = (data_scadenza - oggi).days
+    giorni_mancanti = (data_scadenza - hoy = oggi).days
     
     if giorni_mancanti < 0:
         return "SCADUTO ❌", data_scadenza
@@ -88,9 +94,9 @@ with st.sidebar.form("nuovo_volontario", clear_on_submit=True):
     cognome = st.text_input("Cognome")
     tel = st.text_input("Telefono")
     email = st.text_input("Email")
-    data_base = st.date_input("Data Corso Base", value=date.today())
+    data_base = st.date_input("Data Corso Base", value=date.today(), format="DD/MM/YYYY")
     ha_aggiornamento = st.checkbox("Ha effettuato aggiornamenti?")
-    data_agg = st.date_input("Data Ultimo Aggiornamento", value=date.today()) if ha_aggiornamento else None
+    data_agg = st.date_input("Data Ultimo Aggiornamento", value=date.today(), format="DD/MM/YYYY") if ha_aggiornamento else None
     
     submit = st.form_submit_button("Salva Anagrafica")
     if submit:
@@ -122,6 +128,12 @@ if not st.session_state.volontari.empty:
         df_visualizzazione = df_visualizzazione[df_visualizzazione['Stato Brevetto'] == filtro_stato]
         
     df_visualizzazione = df_visualizzazione.sort_values(by='Data Scadenza', ascending=True, na_position='last')
+    
+    # Formattazione finale delle colonne data in formato italiano (gg/mm/aaaa) prima di mostrarle
+    for col in ['Data Corso Base', 'Data Aggiornamento', 'Data Scadenza']:
+        if col in df_visualizzazione.columns:
+            df_visualizzazione[col] = pd.to_datetime(df_visualizzazione[col], errors='coerce').dt.strftime('%d/%m/%Y').fillna('')
+
     st.dataframe(df_visualizzazione, use_container_width=True)
     
     # --- SISTEMA INVIO NOTIFICHE EMAIL ---
@@ -137,7 +149,7 @@ if not st.session_state.volontari.empty:
         if st.button(f"Invia Mail di Avviso a {len(da_notificare)} Volontari"):
             for idx, r in da_notificare.iterrows():
                 testo_stato = "è SCADUTO" if "SCADUTO" in r['Stato Brevetto'] else f"scadrà il {r['Data Scadenza']}"
-                st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']})")
+                st.info(f"📧 Mail inviata a: {r['Nome']} {r['Cognome']} ({r['Email']}) - Scadenza: {r['Data Scadenza']}")
             st.success("🎉 Email inviate con successo!")
 else:
     st.info("💡 Il registro è vuoto. Carica un file Excel a sinistra o inserisci un volontario per partire.")
